@@ -1,0 +1,8 @@
+save_folder: 'C:\Users\gagrafio\Iptil\CyberSecurity\Ultimo\Pcaps'
+pcap_path: 'C:\Users\gagrafio\Iptil\CyberSecurity\Ultimo\Pcaps'
+
+capture_interval: 1            # traffic capture interval in seconds
+sample_type: "bidirectional"      # bidirectional or unidirectional (flows)
+target_sample_length: 1024        # how many bytes to keep per flow
+dataset_type: "C"                 # A for tabular, B for statistical and C for tabular + statistical
+padding_per_packet: False         # Instead of appending packets to a flow until they reach the target sample length, you pad each packet uniformly and continue appending them until the total reaches the target sample length.
