@@ -43,47 +43,52 @@ def Split_Cap(capture_interval, pcap_path, save_folder):
 
 
 
-
 def ReOrganize_Files(main_folder_path):
     print("\n\033[93mReorganizing Files.\033[0m")
-
-    # Paths to new Statistical and Tabular folders
+    # Define the names of the new folders
     statistical_folder = os.path.join(main_folder_path, 'Statistical')
     tabular_folder = os.path.join(main_folder_path, 'Tabular')
-
-    # Create new Statistical and Tabular folders in the main folder if they don't exist
+    # Create the new folders
     os.makedirs(statistical_folder, exist_ok=True)
     os.makedirs(tabular_folder, exist_ok=True)
 
-    # List all subfolders in the main folder, excluding 'Statistical' and 'Tabular'
-    with os.scandir(main_folder_path) as entries:
-        subfolders = [entry.path for entry in entries if entry.is_dir() and entry.name not in ('Statistical', 'Tabular')]
+    # Get a list of split folders
+    split_folders = [item for item in os.listdir(main_folder_path) if item.startswith('split_') and os.path.isdir(os.path.join(main_folder_path, item))]
 
-    # Iterate over each subfolder
-    for subfolder in subfolders:
-        # Paths to 'Statistical' and 'Tabular' inside the subfolder
-        statistical_subfolder = os.path.join(subfolder, 'Statistical')
-        tabular_subfolder = os.path.join(subfolder, 'Tabular')
 
-        # Move all CSV files from the statistical_subfolder to the main Statistical folder
-        if os.path.exists(statistical_subfolder):
-            with os.scandir(statistical_subfolder) as stat_entries:
-                for entry in stat_entries:
-                    src_path = entry.path
-                    dest_path = os.path.join(statistical_folder, entry.name)
-                    os.rename(src_path, dest_path)
+    # Iterate through the sorted split folders
+    for split_folder in split_folders:
+        print(f"\nProcessing folder: {split_folder}")
+        split_folder_path = os.path.join(main_folder_path, split_folder)
 
-        # Move all CSV files from the tabular_subfolder to the main Tabular folder
-        if os.path.exists(tabular_subfolder):
-            with os.scandir(tabular_subfolder) as tab_entries:
-                for entry in tab_entries:
-                    src_path = entry.path
-                    dest_path = os.path.join(tabular_folder, entry.name)
-                    os.rename(src_path, dest_path)
 
-        # Delete the original subfolder
-        shutil.rmtree(subfolder)
+        # Paths to the statistical and tabular data within the split folder
+        split_statistical_path = os.path.join(split_folder_path, 'Statistical')
+        split_tabular_path = os.path.join(split_folder_path, 'Tabular')
+
+        # Get sorted lists of files
+        statistical_files = os.listdir(split_statistical_path)
+        tabular_files = os.listdir(split_tabular_path)
+
+        # Move Statistical files
+        for file_name in statistical_files:
+            if file_name.endswith('.csv'):
+                src_path = os.path.join(split_statistical_path, file_name)
+                dest_path = os.path.join(statistical_folder, file_name)
+                shutil.move(src_path, dest_path)
+
+        # Move Tabular files
+        for file_name in tabular_files:
+            if file_name.endswith('.csv'):
+                src_path = os.path.join(split_tabular_path, file_name)
+                dest_path = os.path.join(tabular_folder, file_name)
+                shutil.move(src_path, dest_path)
+
+        # Delete the now empty split folder
+        print(f"Deleting folder: {split_folder_path}")
+        try:
+            shutil.rmtree(split_folder_path)
+        except Exception as e:
+            print(f"Failed to delete {split_folder_path}: {e}")
 
     print("\n\033[93mFiles have been moved successfully.\033[0m")
-
-
