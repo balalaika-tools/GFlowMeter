@@ -60,7 +60,10 @@ def ReOrganize_Files(main_folder_path):
     for split_folder in split_folders:
         print(f"\nProcessing folder: {split_folder}")
         split_folder_path = os.path.join(main_folder_path, split_folder)
-
+        
+        if len(os.listdir(split_folder_path)) == 0:
+            shutil.rmtree(split_folder_path)
+            continue
 
         # Paths to the statistical and tabular data within the split folder
         split_statistical_path = os.path.join(split_folder_path, 'Statistical')
