@@ -1,7 +1,7 @@
 import os
 import subprocess
 import shutil
-
+from tqdm import tqdm
 
 
 
@@ -53,13 +53,12 @@ def ReOrganize_Files(main_folder_path):
     os.makedirs(tabular_folder, exist_ok=True)
 
     # Get a list of split folders
-    split_folders = [item for item in os.listdir(main_folder_path) if item.startswith('split_') and os.path.isdir(os.path.join(main_folder_path, item))]
+    split_folders = [item for item in os.scandir(main_folder_path) if item.name.startswith('split_') and item.is_dir()]
 
-
-    # Iterate through the sorted split folders
-    for split_folder in split_folders:
-        print(f"\nProcessing folder: {split_folder}")
-        split_folder_path = os.path.join(main_folder_path, split_folder)
+    # Iterate through the sorted split folders with tqdm progress bar
+    for split_folder in tqdm(split_folders, desc="Processing subfolders"):
+        print(f"\nProcessing folder: {split_folder.name}")
+        split_folder_path = split_folder.path
         
         if len(os.listdir(split_folder_path)) == 0:
             shutil.rmtree(split_folder_path)
@@ -69,23 +68,21 @@ def ReOrganize_Files(main_folder_path):
         split_statistical_path = os.path.join(split_folder_path, 'Statistical')
         split_tabular_path = os.path.join(split_folder_path, 'Tabular')
 
-        # Get sorted lists of files
-        statistical_files = os.listdir(split_statistical_path)
-        tabular_files = os.listdir(split_tabular_path)
+        # Move Statistical files using os.scandir (no need to load all files into memory)
+        with os.scandir(split_statistical_path) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.endswith('.csv'):
+                    src_path = entry.path
+                    dest_path = os.path.join(statistical_folder, entry.name)
+                    shutil.move(src_path, dest_path)
 
-        # Move Statistical files
-        for file_name in statistical_files:
-            if file_name.endswith('.csv'):
-                src_path = os.path.join(split_statistical_path, file_name)
-                dest_path = os.path.join(statistical_folder, file_name)
-                shutil.move(src_path, dest_path)
-
-        # Move Tabular files
-        for file_name in tabular_files:
-            if file_name.endswith('.csv'):
-                src_path = os.path.join(split_tabular_path, file_name)
-                dest_path = os.path.join(tabular_folder, file_name)
-                shutil.move(src_path, dest_path)
+        # Move Tabular files using os.scandir
+        with os.scandir(split_tabular_path) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.endswith('.csv'):
+                    src_path = entry.path
+                    dest_path = os.path.join(tabular_folder, entry.name)
+                    shutil.move(src_path, dest_path)
 
         # Delete the now empty split folder
         print(f"Deleting folder: {split_folder_path}")
@@ -95,3 +92,4 @@ def ReOrganize_Files(main_folder_path):
             print(f"Failed to delete {split_folder_path}: {e}")
 
     print("\n\033[93mFiles have been moved successfully.\033[0m")
+    
