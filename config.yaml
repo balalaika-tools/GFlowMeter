@@ -1,7 +1,7 @@
-save_folder: '/Users/sublime/Desktop/Giorgos/Personal Projects/GFlowMeter'
-pcap_path: '/Users/sublime/Desktop/Giorgos/temp'
+save_folder: 'C:\Users\Pcaps'
+pcap_path: 'C:\Users\Pcaps'
 
-capture_interval: 1            # traffic capture interval in seconds
+capture_interval: 1               # traffic capture interval in seconds
 sample_type: "bidirectional"      # bidirectional or unidirectional (flows)
 target_sample_length: 1024        # how many bytes to keep per flow
 dataset_type: "C"                 # A for tabular, B for statistical and C for tabular + statistical
