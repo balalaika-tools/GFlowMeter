@@ -10,8 +10,9 @@ GFlowMeter is a Python-based tool designed to process network traffic captured i
 4. [Configuration](#configuration)
 5. [Usage](#usage)
 6. [Output Format](#output-format)
-7. [Folder Structure](#folder-structure)
-8. [Notes](#notes)
+7. [Project Structure](#project-structure)
+8. [Troubleshooting](#troubleshooting)
+9. [Notes](#notes)
 
 
 ## Features
@@ -25,57 +26,84 @@ GFlowMeter is a Python-based tool designed to process network traffic captured i
 
 ## Requirements
 
-- **Python 3.9+**
-- **Scapy**: For packet manipulation and network traffic analysis.
-- **PyYAML**: For reading YAML configuration files.
-- **Tqdm**: For progress bars in the terminal.
+
+- **uv**: Fast Python package installer and resolver (recommended)
 - **Editcap**: A command-line utility from the Wireshark suite for splitting PCAP files.
-- **Hexdump**: For converting packet data into hexadecimal format.
-- **NumPy**: For numerical operations.
-- **Pandas**: For data manipulation and DataFrame support.
 - **Wireshark**: Must be installed, and the `editcap` utility should be accessible via your system's environment variables (PATH).
 
 ## Installation
 
-1. **Install Dependencies**
+### 1. Install uv
 
-   Open your terminal or command prompt and run:
+**uv** is a fast Python package installer and resolver written in Rust. It's recommended for managing dependencies and running the project.
 
-   ```bash
-   pip install scapy pyyaml tqdm hexdump numpy pandas
-   ```
+#### macOS and Linux
 
-2. **Install Wireshark**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-   Ensure that Wireshark is installed and that the `editcap` utility is accessible from the command line (i.e., it's in your PATH environment variable).
+#### Windows
 
-   You can download Wireshark from [https://www.wireshark.org/download.html](https://www.wireshark.org/download.html).
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
-3. **Verify `editcap` Installation**
+#### Alternative: Using pip
 
-   Run the following command to ensure `editcap` is accessible:
+```bash
+pip install uv
+```
 
-   ```bash
-   editcap -h
-   ```
+After installation, restart your terminal or run `source ~/.bashrc` (Linux) or `source ~/.zshrc` (macOS) to add uv to your PATH.
 
-   If the command outputs help information, `editcap` is correctly installed and accessible.
+Verify the installation:
 
-4. **Set Up the Project**
+```bash
+uv --version
+```
 
-   Place the provided code files into a directory of your choice. Ensure the directory structure matches the following:
+### 2. Install Wireshark
 
-   ```
-   GFlowMeter/
-   ├── main.py
-   ├── config.yaml
-   ├── Scripts/
-   │   ├── GFlowMeter/
-   │   │   ├── GFlowMeter.py
-   │   │   ├── Uni_Feature_Names.txt
-   │   │   └── Bi_Feature_Names.txt
-   │   └── utils.py
-   ```
+Ensure that Wireshark is installed and that the `editcap` utility is accessible from the command line (i.e., it's in your PATH environment variable).
+
+You can download Wireshark from [https://www.wireshark.org/download.html](https://www.wireshark.org/download.html).
+
+### 3. Verify `editcap` Installation
+
+Run the following command to ensure `editcap` is accessible:
+
+```bash
+editcap -h
+```
+
+If the command outputs help information, `editcap` is correctly installed and accessible.
+
+### 4. Clone or Download the Project
+
+```bash
+git clone <repository-url>
+cd GFlowMeter
+```
+
+Or download and extract the project to a directory of your choice.
+
+### 5. Install Project Dependencies
+
+Using **uv** (recommended):
+
+```bash
+cd GFLowMeter # if not already there
+# Install the project in editable mode with all dependencies
+uv sync
+```
+
+This will:
+- Create a virtual environment automatically
+- Install all dependencies specified in `pyproject.toml`
+- Install the project in editable mode so you can use the `gflow` command
+
+
 
 ## Configuration
 
@@ -107,34 +135,63 @@ padding_per_packet: False      # Whether to pad each packet uniformly
 
 ## Usage
 
-1. **Prepare the Configuration**
+### 1. Prepare the Configuration
 
-   Edit the `config.yaml` file to suit your needs. Ensure that all paths are correct and that the parameters are set as desired.
+Edit the `config.yaml` file in the project root directory to suit your needs. Ensure that all paths are correct and that the parameters are set as desired.
 
-   - To process multiple PCAP files, set `pcap_path` to the directory containing your PCAP files.
-   - Example:
+- To process multiple PCAP files, set `pcap_path` to the directory containing your PCAP files.
+- Example:
 
-     ```yaml
-     save_folder: 'output'
-     pcap_path: 'pcaps'
-     capture_interval: 1
-     sample_type: "bidirectional"
-     target_sample_length: 1024
-     dataset_type: "C"
-     padding_per_packet: False
-     ```
+  ```yaml
+  save_folder: 'output'
+  pcap_path: 'pcaps'
+  capture_interval: 1
+  sample_type: "bidirectional"
+  target_sample_length: 1024
+  dataset_type: "C"
+  padding_per_packet: False
+  ```
 
-2. **Run the Tool**
+### 2. Run the Tool
 
-   Open a terminal or command prompt in the project directory and execute:
+#### Using the `gflow` Command (Recommended)
 
-   ```bash
-   python main.py
-   ```
 
-3. **Monitor the Output**
+```bash
+# Activate the virtual environment (uv creates it automatically)
+source .venv/bin/activate  # Linux/macOS
+# or
+.venv\Scripts\activate     # Windows
 
-   The tool will display progress bars and status messages in the terminal. It will process each PCAP file according to the configurations and generate the datasets.
+# Then run
+gflow
+```
+
+#### Using Python Directly
+
+You can also run the module directly:
+
+```bash
+# From the project root directory
+python -m GFlowMeter.main
+```
+
+Or:
+
+```bash
+# From the project root directory
+uv run python -m GFlowMeter.main
+```
+
+### 3. Monitor the Output
+
+The tool will:
+- Display progress bars and status messages in the terminal
+- Process each PCAP file according to the configurations
+- Generate the datasets
+- Log all operations and errors to the `logs/` directory
+
+Check the `logs/` folder for detailed log files with timestamps (e.g., `gflowmeter_20241230_132828.log`).
 
 ## Output Format
 
@@ -194,41 +251,47 @@ output/
 
 Each `pcapX` folder contains the processed data for that specific PCAP file.
 
-## Folder Structure
+## Project Structure
+
+The project follows a modern Python package structure:
+
+```
+GFlowMeter/
+├── src/
+│   └── GFlowMeter/
+│       ├── __init__.py
+│       ├── main.py              # Main entry point
+│       ├── gflow.py             # GFlow_Meter class
+│       ├── utils.py             # Utility functions
+│       ├── logger.py            # Logging configuration
+│       └── misc/
+│           ├── Bi_Feature_Names.txt
+│           └── Uni_Feature_Names.txt
+├── logs/                        # Log files (auto-generated)
+├── config.yaml                  # Configuration file
+├── pyproject.toml              # Project metadata and dependencies
+├── README.md                    # This file
+└── .gitignore                  # Git ignore rules
+```
+
+## Output Structure
 
 Assuming the following configuration:
 
 - `save_folder: 'output'`
 - `pcap_path: 'pcaps'`
 
-### Initial Structure
-
-```
-GFlowMeter/
-├── main.py
-├── config.yaml
-├── Scripts/
-│   ├── GFlowMeter/
-│   │   ├── GFlowMeter.py
-│   │   ├── Uni_Feature_Names.txt
-│   │   └── Bi_Feature_Names.txt
-│   └── utils.py
-└── pcaps/
-    ├── pcap1.pcap
-    ├── pcap2.pcap
-    └── pcap3.pcap
-```
-
 ### After Running the Tool
 
 ```
 GFlowMeter/
-├── main.py
-├── config.yaml
-├── Scripts/
+├── src/
 │   └── ...
+├── logs/
+│   └── gflowmeter_YYYYMMDD_HHMMSS.log
+├── config.yaml
 ├── output/
-│   ├── pcap1_bidirectional_1024/
+│   ├── pcap1/
 │   │   ├── Tabular/
 │   │   │   ├── Sample_0.csv
 │   │   │   ├── Sample_1.csv
@@ -237,12 +300,12 @@ GFlowMeter/
 │   │       ├── Sample_0.csv
 │   │       ├── Sample_1.csv
 │   │       └── ...
-│   ├── pcap2_bidirectional_1024/
+│   ├── pcap2/
 │   │   ├── Tabular/
 │   │   │   └── ...
 │   │   └── Statistical/
 │   │       └── ...
-│   └── pcap3_bidirectional_1024/
+│   └── pcap3/
 │       ├── Tabular/
 │       │   └── ...
 │       └── Statistical/
@@ -253,13 +316,41 @@ GFlowMeter/
     └── pcap3.pcap
 ```
 
+## Troubleshooting
+
+### Common Issues
+
+1. **`gflow: command not found`**
+   - Make sure you've installed the project with `uv pip install -e .` or `pip install -e .`
+   - Verify the installation: `which gflow` (Linux/macOS) or `where gflow` (Windows)
+   - Try running with: `uv run gflow`
+
+2. **`editcap: command not found`**
+   - Install Wireshark and ensure `editcap` is in your PATH
+   - On macOS: `brew install wireshark`
+   - On Linux: `sudo apt-get install wireshark` (Ubuntu/Debian) or `sudo yum install wireshark` (RHEL/CentOS)
+   - On Windows: Add Wireshark installation directory to your PATH
+
+3. **Configuration file not found**
+   - Ensure `config.yaml` exists in the current working directory
+   - Or place it in the project root directory
+
+4. **Import errors**
+   - Make sure all dependencies are installed: `uv pip install -e .`
+   - Check that you're using Python 3.12 or higher: `python --version`
+
+5. **Permission errors**
+   - Ensure you have read access to PCAP files and write access to the output directory
+   - Check file permissions on the save folder
+
 ## Notes
 
 - **PCAP Path Flexibility**: The `pcap_path` in the configuration can point to a single PCAP file or a folder containing multiple PCAP files. The tool will handle both cases appropriately.
 - **Wireshark Requirement**: Ensure that Wireshark is installed and that the `editcap` utility is accessible via your system's environment variables (PATH). This is necessary for splitting PCAP files.
 - **Data Cleanup**: Intermediate split PCAP files are removed after processing to conserve disk space.
-- **Dependencies**: Ensure that all required Python packages and external tools like `editcap` are installed and accessible.
+- **Logging**: All operations and errors are logged to timestamped files in the `logs/` directory for debugging and monitoring.
 - **Performance**: Processing large PCAP files can be resource-intensive. It's recommended to monitor system resources and adjust parameters as needed.
+- **Virtual Environment**: When using `uv`, a virtual environment is automatically created in `.venv/`. You can activate it manually if needed.
 
 
 

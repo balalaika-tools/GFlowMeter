@@ -1,4 +1,13 @@
-import warnings, logging, os, tqdm, hexdump, time
+import warnings
+import logging
+import os
+import tqdm
+import hexdump
+import time
+from typing import Dict, List, Tuple, Any, Optional, Union
+from .logger import get_logger
+
+logger = get_logger()
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 warnings.simplefilter("ignore", DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning, message="No IPv4 address found on .*")
@@ -17,51 +26,105 @@ C: Tabular + Statistical
 '''
 
 class GFlow_Meter():
-    def __init__(self, pcap_path, save_folder_path=None, sample_type='bidirectional', target_sample_length=784,
-                dataset_type='C', padding_per_packet=False):
-        # Path Handling
-        self.pcap_path = pcap_path
-        self.save_folder_name = os.path.basename(self.pcap_path).split('.')[0] + f'_{sample_type}_{target_sample_length}'
-        if save_folder_path is None:
-            pcap_folder = os.path.dirname(os.path.abspath(self.pcap_path))
-            self.save_folder = os.path.join(pcap_folder, self.save_folder_name)
-        else:
-            self.save_folder = os.path.join(save_folder_path, self.save_folder_name)
-        if not os.path.exists(self.save_folder): os.makedirs(self.save_folder)
+    def __init__(
+        self, 
+        pcap_path: str, 
+        save_folder_path: Optional[str] = None, 
+        sample_type: str = 'bidirectional', 
+        target_sample_length: int = 784,
+        dataset_type: str = 'C', 
+        padding_per_packet: bool = False
+    ) -> None:
+        try:
+            logger.debug(f"Initializing GFlow_Meter for {pcap_path}")
+            
+            # Validate pcap_path
+            if not os.path.exists(pcap_path):
+                raise FileNotFoundError(f"PCAP file not found: {pcap_path}")
+            
+            # Path Handling
+            self.pcap_path = pcap_path
+            self.save_folder_name = os.path.basename(self.pcap_path).split('.')[0] + f'_{sample_type}_{target_sample_length}'
+            
+            try:
+                if save_folder_path is None:
+                    pcap_folder = os.path.dirname(os.path.abspath(self.pcap_path))
+                    self.save_folder = os.path.join(pcap_folder, self.save_folder_name)
+                else:
+                    self.save_folder = os.path.join(save_folder_path, self.save_folder_name)
+                
+                if not os.path.exists(self.save_folder):
+                    os.makedirs(self.save_folder)
+                    logger.debug(f"Created save folder: {self.save_folder}")
+            except OSError as e:
+                logger.error(f"Error creating save folder: {e}", exc_info=True)
+                raise
 
-        # Save Parameters
-        self.dataset_type = dataset_type
-        self.sample_type = sample_type
-        self.target_sample_length = target_sample_length
-        self.padding_per_packet = padding_per_packet
+            # Save Parameters
+            self.dataset_type = dataset_type
+            self.sample_type = sample_type
+            self.target_sample_length = target_sample_length
+            self.padding_per_packet = padding_per_packet
 
-        # Check Dataset Type
-        valid_dataset_types= {'A', 'B', 'C'}
-        if self.dataset_type not in valid_dataset_types:
-            raise Exception("Wrong Dataset Type. Try 'A', 'B' or 'C'")
+            # Check Dataset Type
+            valid_dataset_types = {'A', 'B', 'C'}
+            if self.dataset_type not in valid_dataset_types:
+                error_msg = f"Invalid dataset type: {self.dataset_type}. Must be 'A', 'B', or 'C'"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
-        # Check Flow-Types
-        if self.sample_type!= 'unidirectional' and self.sample_type!= 'bidirectional':
-            raise Exception("Wrong Sample Type. Try 'unidirectional' or 'bidirectional'")
+            # Check Flow-Types
+            if self.sample_type != 'unidirectional' and self.sample_type != 'bidirectional':
+                error_msg = f"Invalid sample type: {self.sample_type}. Must be 'unidirectional' or 'bidirectional'"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
-        # Layers Setup
-        self.tcp_layer = scapy.layers.inet.TCP
-        self.udp_layer = scapy.layers.inet.UDP
-        self.sctp_layer = scapy.layers.sctp.SCTP
+            # Layers Setup
+            self.tcp_layer = scapy.layers.inet.TCP
+            self.udp_layer = scapy.layers.inet.UDP
+            self.sctp_layer = scapy.layers.sctp.SCTP
 
-        # Read_Feature_Names
-        if self.Check_For_Statistical():
-            self.feature_names = []
-            feature_names_path = 'Scripts/GFlowMeter/Bi_Feature_Names.txt' if sample_type == 'bidirectional' \
-            else 'Scripts/GFlowMeter/Uni_Feature_Names.txt'
-            with open(os.path.join(os.getcwd(), feature_names_path)) as file:
-                self.feature_names = [line.rstrip() for line in file]
-            self.df_statistical = pd.DataFrame(columns=self.feature_names, dtype=float)
+            # Read_Feature_Names
+            if self.Check_For_Statistical():
+                try:
+                    self.feature_names = []
+                    # Get the directory where this script is located
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    misc_dir = os.path.join(script_dir, 'misc')
+                    feature_names_path = os.path.join(misc_dir, 'Bi_Feature_Names.txt') if sample_type == 'bidirectional' \
+                    else os.path.join(misc_dir, 'Uni_Feature_Names.txt')
+                    
+                    if not os.path.exists(feature_names_path):
+                        raise FileNotFoundError(f"Feature names file not found: {feature_names_path}")
+                    
+                    with open(feature_names_path, 'r') as file:
+                        self.feature_names = [line.rstrip() for line in file]
+                    
+                    if not self.feature_names:
+                        raise ValueError(f"Feature names file is empty: {feature_names_path}")
+                    
+                    self.df_statistical = pd.DataFrame(columns=self.feature_names, dtype=float)
+                    logger.debug(f"Loaded {len(self.feature_names)} feature names from {feature_names_path}")
+                except FileNotFoundError as e:
+                    logger.error(f"Feature names file not found: {e}")
+                    raise
+                except Exception as e:
+                    logger.error(f"Error loading feature names: {e}", exc_info=True)
+                    raise
+            
+            logger.debug(f"GFlow_Meter initialized successfully for {os.path.basename(pcap_path)}")
+            
+        except (FileNotFoundError, ValueError) as e:
+            logger.error(f"Initialization failed: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during initialization: {e}", exc_info=True)
+            raise
 
 
 
 
-    def Check_For_Statistical(self):
+    def Check_For_Statistical(self) -> bool:
         if self.dataset_type == 'B' or self.dataset_type =='C':
             return True
         else:
@@ -70,7 +133,7 @@ class GFlow_Meter():
 
 
 
-    def Check_For_Tabular (self):
+    def Check_For_Tabular(self) -> bool:
         if self.dataset_type == 'A' or self.dataset_type =='C':
             return True
         else:
@@ -79,28 +142,62 @@ class GFlow_Meter():
 
 
 
-    def Generate_Dataset(self, start_index=0):
-        capture = self.Capture_Flows()
-        # Check for Sub-cases
-        if self.Check_For_Tabular():
-            samples, num_samples, session_sample_index = self.Get_Hex_Flows(capture, start_index)
-            if len(samples) == 0: return 0
-            self.Generate_Tabular_Dataset(samples)
-            # Check for statistical
+    def Generate_Dataset(self, start_index: int = 0) -> int:
+        try:
+            logger.debug(f"Generating dataset starting at index {start_index}")
+            
+            capture = self.Capture_Flows()
+            
+            # Check for Sub-cases
+            if self.Check_For_Tabular():
+                try:
+                    samples, num_samples, session_sample_index = self.Get_Hex_Flows(capture, start_index)
+                    if len(samples) == 0:
+                        logger.warning("No samples generated from hex flows")
+                        return 0
+                    
+                    self.Generate_Tabular_Dataset(samples)
+                    logger.debug(f"Generated {num_samples} tabular samples")
+                    
+                    # Check for statistical
+                    if self.Check_For_Statistical():
+                        try:
+                            self.Generate_Statistical_Dataset(capture, session_sample_index)
+                            logger.debug("Generated statistical dataset")
+                        except Exception as e:
+                            logger.error(f"Error generating statistical dataset: {e}", exc_info=True)
+                            raise
+                    
+                    return num_samples
+                except Exception as e:
+                    logger.error(f"Error in tabular dataset generation: {e}", exc_info=True)
+                    raise
+
+            # Sub-Case 3: Only Statistical
             if self.Check_For_Statistical():
-                self.Generate_Statistical_Dataset(capture, session_sample_index)
-            return num_samples
+                try:
+                    # Need to get session_sample_index first
+                    _, _, session_sample_index = self.Get_Hex_Flows(capture, start_index)
+                    self.Generate_Statistical_Dataset(capture, session_sample_index)
+                    logger.debug("Generated statistical dataset only")
+                    # Return number of samples (would need to calculate from capture)
+                    return len(session_sample_index)
+                except Exception as e:
+                    logger.error(f"Error in statistical-only dataset generation: {e}", exc_info=True)
+                    raise
+            
+            logger.warning("No dataset type selected for generation")
+            return 0
+            
+        except Exception as e:
+            logger.error(f"Error generating dataset: {e}", exc_info=True)
+            raise
 
-        # Sub-Case 3
-        if self.Check_For_Statistical():
-            self.Generate_Statistical_Dataset(capture, session_sample_index)
-            return num_samples
 
 
 
-
-    def Generate_Tabular_Dataset(self, samples):
-        print('\033[92mGenerating Tabular Dataset\033[0m')
+    def Generate_Tabular_Dataset(self, samples: List[Dict[str, Any]]) -> None:
+        logger.debug("Generating Tabular Dataset")
         tic = time.time()
         samples_df = pd.DataFrame(samples)
         samples_df.reset_index(drop=True, inplace=True)
@@ -117,16 +214,18 @@ class GFlow_Meter():
             row_df.to_csv(os.path.join(save_folder_path, filename), index=False)
 
         toc = time.time()
-        print(f"Tabular Generated, \033[94m{(toc - tic) / 60:.3}\033[0m minutes")
+        logger.debug(f"Tabular Generated in {(toc - tic) / 60:.3f} minutes")
 
 
 
 
-    def Generate_Statistical_Dataset(self, capture, session_sample_index):
-        print('\033[92mGenerating Statistical Dataset\033[0m')
+    def Generate_Statistical_Dataset(self, capture: Any, session_sample_index: Dict[str, int]) -> None:
+        logger.debug("Generating Statistical Dataset")
         tic = time.time()
         samples = self.Get_Statistical_Features(capture, session_sample_index)
-        if len(samples) == 0: return
+        if samples.empty or len(samples) == 0:
+            logger.debug("No statistical samples to generate")
+            return
 
         # Export Data
         save_folder_path = os.path.join(self.save_folder, 'Statistical')
@@ -140,29 +239,55 @@ class GFlow_Meter():
             row_df.to_csv(os.path.join(save_folder_path, filename), index=False)
 
         toc = time.time()
-        print(f"Statistical Generated, \033[94m{(toc - tic) / 60:.3}\033[0m minutes")
+        logger.debug(f"Statistical Generated in {(toc - tic) / 60:.3f} minutes")
 
 
 
 
-    def Capture_Flows(self):
-        tic = time.time()
-        print(f'\n\033[94mCapturing\033[0m {os.path.basename(self.pcap_path)}')
-        capture = scapy.all.sniff(offline=self.pcap_path)
-        if self.sample_type == 'unidirectional':
-            capture = capture.sessions(self.Unidirectional_Flows_Split)
-        elif self.sample_type == 'bidirectional':
-            capture = capture.sessions(self.Bidirectional_Sessions_Split)
-        else:
-            raise Exception("PROVIDED sample_type IS INVALID")
-        toc = time.time()
-        print(f'Capture Ended, \033[94m{(toc - tic) / 60:.3}\033[0m minutes')
-        return capture
+    def Capture_Flows(self) -> Any:
+        try:
+            tic = time.time()
+            logger.debug(f"Capturing flows from {os.path.basename(self.pcap_path)}")
+            
+            if not os.path.exists(self.pcap_path):
+                raise FileNotFoundError(f"PCAP file not found: {self.pcap_path}")
+            
+            try:
+                capture = scapy.all.sniff(offline=self.pcap_path)
+                logger.debug(f"Loaded PCAP file with {len(capture)} packets")
+            except Exception as e:
+                logger.error(f"Error reading PCAP file {self.pcap_path}: {e}", exc_info=True)
+                raise
+            
+            try:
+                if self.sample_type == 'unidirectional':
+                    capture = capture.sessions(self.Unidirectional_Flows_Split)
+                elif self.sample_type == 'bidirectional':
+                    capture = capture.sessions(self.Bidirectional_Sessions_Split)
+                else:
+                    error_msg = f"Invalid sample_type: {self.sample_type}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                
+                logger.debug(f"Organized capture into {len(capture)} sessions")
+            except Exception as e:
+                logger.error(f"Error organizing capture sessions: {e}", exc_info=True)
+                raise
+            
+            toc = time.time()
+            logger.debug(f'Capture completed in {(toc - tic) / 60:.3f} minutes')
+            return capture
+            
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            logger.error(f"Error capturing flows: {e}", exc_info=True)
+            raise
 
 
 
 
-    def Unidirectional_Flows_Split(self, packet):
+    def Unidirectional_Flows_Split(self, packet: Any) -> str:
         ip_layer = scapy.layers.inet.IP if 'IP' in packet else scapy.layers.inet6.IPv6
         if ('IP' in packet) or ('IPv6' in packet):
             if 'TCP' in packet:
@@ -184,7 +309,7 @@ class GFlow_Meter():
 
 
 
-    def Bidirectional_Sessions_Split(self, packet):
+    def Bidirectional_Sessions_Split(self, packet: Any) -> str:
         ip_layer = scapy.layers.inet.IP if 'IP' in packet else scapy.layers.inet6.IPv6
         if ('IP' in packet) or ('IPv6' in packet):
             if 'TCP' in packet:
@@ -208,12 +333,13 @@ class GFlow_Meter():
 
 
 
-    def Get_Hex_Flows(self, capture, start_index):
+    def Get_Hex_Flows(self, capture: Any, start_index: int) -> Tuple[List[Dict[str, Any]], int, Dict[str, int]]:
         samples = []
         sample_index = start_index
         session_sample_index = {}  # Map session keys to sample indices
         for packet_description, packet_list in tqdm.tqdm(capture.items(), total=len(capture),
-                                                         desc='\033[97mProcess Flows\033[0m', colour='green'):
+                                                         desc='\033[97mProcess Flows\033[0m', colour='green',
+                                                         disable=len(capture) == 0):
             sample_packets = []
             if self.Check_For_Protocols(packet_description):
                 session_sample_index[packet_description] = sample_index  # Assign sample_index to session
@@ -237,7 +363,7 @@ class GFlow_Meter():
 
 
 
-    def Check_For_Protocols(self, packet_description):
+    def Check_For_Protocols(self, packet_description: str) -> bool:
         ck1, ck2, ck3, ck4 = False, False, False, False
         if 'TCP' in packet_description:
             ck1 = True
@@ -252,7 +378,7 @@ class GFlow_Meter():
 
 
 
-    def Process_Packet(self, packet):
+    def Process_Packet(self, packet: Any) -> List[int]:
         ip_layer = scapy.layers.inet.IP if 'IP' in packet else scapy.layers.inet6.IPv6
         hex_stream = hexdump.dump(scapy.all.Raw(packet).load, sep=' ')
 
@@ -283,7 +409,7 @@ class GFlow_Meter():
 
 
 
-    def Pad_Sample(self, sample, target_sample_length):
+    def Pad_Sample(self, sample: List[int], target_sample_length: int) -> List[int]:
         sample_length = len(sample)
         pad = target_sample_length - sample_length
         if pad == 0:
@@ -297,22 +423,32 @@ class GFlow_Meter():
 
 
 
-    def Get_Statistical_Features(self, capture, session_sample_index):
+    def Get_Statistical_Features(self, capture: Any, session_sample_index: Dict[str, int]) -> pd.DataFrame:
         if self.sample_type == 'unidirectional':
             fwd = self.Get_Unidirectional_Flow_List(capture, session_sample_index)
         else:
             fwd, bwd = self.Get_Bidirectional_Flow_List(capture, session_sample_index)
         # Return if no sessions of desired protocols are found
-        if len(fwd) == 0: return []
+        if len(fwd) == 0:
+            return pd.DataFrame()
         # Extract Unidirectional Features
         Dataframes, Fwd_Timestamps = [], []
 
         for idx, fwd_flow in enumerate(fwd):
+            if len(fwd_flow) == 0:
+                logger.warning(f"Empty forward flow at index {idx}, skipping")
+                continue
             fwd_df = self.df_statistical.copy()
             fwd_df, fwd_timestamps = self.Extract_Fwd_Features(fwd_flow, fwd_df)
             fwd_df['Sample_Index'] = fwd_flow[0].sample_index  # Assign the sample index
             Dataframes.append(fwd_df)
             Fwd_Timestamps.append(fwd_timestamps)
+        
+        # Check if we have any dataframes to process
+        if len(Dataframes) == 0:
+            logger.warning("No valid flows found for statistical feature extraction")
+            return pd.DataFrame()
+        
         if self.sample_type == 'unidirectional':
             return pd.concat(Dataframes, ignore_index=True)
 
@@ -330,11 +466,12 @@ class GFlow_Meter():
 
 
 
-    def Get_Unidirectional_Flow_List(self, capture, session_sample_index):
+    def Get_Unidirectional_Flow_List(self, capture: Any, session_sample_index: Dict[str, int]) -> List[List[Any]]:
         fwd = []
         for packet_description, packet_list in tqdm.tqdm(capture.items(), total=len(capture),
                                                          desc='\033[97mProcess Unidirectional Flows\033[0m',
-                                                         colour='green'):
+                                                         colour='green',
+                                                         disable=len(capture) == 0):
             if self.Check_For_Protocols(packet_description):
                 sample_index = session_sample_index.get(packet_description)
                 if sample_index is None:
@@ -348,11 +485,12 @@ class GFlow_Meter():
 
 
 
-    def Get_Bidirectional_Flow_List(self, capture, session_sample_index):
+    def Get_Bidirectional_Flow_List(self, capture: Any, session_sample_index: Dict[str, int]) -> Tuple[List[List[Any]], List[List[Any]]]:
         fwd, bwd = [], []
         for packet_description, packet_list in tqdm.tqdm(capture.items(), total=len(capture),
                                                          desc='\033[97mProcess Bidirectional Flows\033[0m',
-                                                         colour='green'):
+                                                         colour='green',
+                                                         disable=len(capture) == 0):
             if self.Check_For_Protocols(packet_description):
                 sample_index = session_sample_index.get(packet_description)
                 if sample_index is None:
@@ -374,7 +512,7 @@ class GFlow_Meter():
 
 
 
-    def Extract_Fwd_Features(self, fwd_flow, fwd_df):
+    def Extract_Fwd_Features(self, fwd_flow: List[Any], fwd_df: pd.DataFrame) -> Tuple[pd.DataFrame, List[float]]:
         fwd_timestamps, fwd_total_bytes, fwd_payload_bytes = [], [], []
         for packet in fwd_flow:
             fwd_timestamps.append(float(packet.time))
@@ -392,7 +530,7 @@ class GFlow_Meter():
 
 
 
-    def Calculate_Size_Features(self, packet_num, total_bytes, payload_bytes, df, description='Flow '):
+    def Calculate_Size_Features(self, packet_num: int, total_bytes: List[int], payload_bytes: List[int], df: pd.DataFrame, description: str = 'Flow ') -> pd.DataFrame:
         # These Feature have no problem if the flow contains only one packet
         df.loc[0, f'{description}Total Packets'] = packet_num
         df.loc[0, f'{description}Total Bytes'] = sum(total_bytes)
@@ -413,7 +551,7 @@ class GFlow_Meter():
 
 
 
-    def Calculate_Temporal_Features(self, timestamps, df, description='Flow '):
+    def Calculate_Temporal_Features(self, timestamps: List[float], df: pd.DataFrame, description: str = 'Flow ') -> pd.DataFrame:
         timestamps.sort()
         if (len(timestamps) == 1) or (timestamps[0] == 0 and len(timestamps) == 2):
             df = self.Handle_Temporal_Exceptions(df, description)
@@ -443,7 +581,7 @@ class GFlow_Meter():
 
 
 
-    def Handle_Temporal_Exceptions(self, df, description):
+    def Handle_Temporal_Exceptions(self, df: pd.DataFrame, description: str) -> pd.DataFrame:
         # Handles the cases where you have only one timestamp or zero timestamps (and assign 0 on the value)
         df.loc[0, f'{description}Duration'] = 0
         df.loc[0, f'{description}Bytes/s'] = 0
@@ -459,7 +597,7 @@ class GFlow_Meter():
 
 
 
-    def Extract_Bwd_Features(self, bwd_flow, df):
+    def Extract_Bwd_Features(self, bwd_flow: List[Any], df: pd.DataFrame) -> Tuple[pd.DataFrame, List[float]]:
         if len(bwd_flow) == 0:
             bwd_timestamps, bwd_total_bytes, bwd_payload_bytes = [0], [0], [0]
         else:
@@ -479,7 +617,7 @@ class GFlow_Meter():
 
 
 
-    def Calculate_Total_Size_Features(self, df):
+    def Calculate_Total_Size_Features(self, df: pd.DataFrame) -> pd.DataFrame:
         df.loc[0, 'Flow Total Packets'] = df['Fwd Total Packets'][0] + df['Bwd Total Packets'][0]
         df.loc[0, 'Flow Total Bytes'] = df['Fwd Total Bytes'][0] + df['Bwd Total Bytes'][0]
 

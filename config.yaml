@@ -1,5 +1,5 @@
-save_folder: 'C:\Users\gagrafio\Iptil\CyberSecurity\Ultimo\Pcaps'
-pcap_path: 'C:\Users\gagrafio\Iptil\CyberSecurity\Ultimo\Pcaps'
+save_folder: '/Users/sublime/Desktop/Giorgos/Personal Projects/GFlowMeter'
+pcap_path: '/Users/sublime/Desktop/Giorgos/temp'
 
 capture_interval: 1            # traffic capture interval in seconds
 sample_type: "bidirectional"      # bidirectional or unidirectional (flows)
